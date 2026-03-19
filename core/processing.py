@@ -28,13 +28,15 @@ def get_drive_service():
 def fetch_files_from_source(path_dir, folder_key, exts=["*.csv"]):
     dfs = []
     
+    # Detetar se existem ficheiros locais antes de assumir Modo Local
+    local_files = []
     if os.path.exists(path_dir):
-        # --- MODO LOCAL ---
-        files = []
         for ext in exts:
-            files.extend(glob.glob(os.path.join(path_dir, "**", ext), recursive=True))
+            local_files.extend(glob.glob(os.path.join(path_dir, "**", ext), recursive=True))
             
-        for f in files:
+    if len(local_files) > 0:
+        # --- MODO LOCAL ---
+        for f in local_files:
             try:
                 if f.lower().endswith(('.xlsx', '.xls')): df = pd.read_excel(f)
                 else: df = pd.read_csv(f, sep=';', encoding='utf-8-sig')
