@@ -21,7 +21,11 @@ def get_drive_service():
             info = dict(st.secrets["google_drive"])
             credentials = service_account.Credentials.from_service_account_info(info)
             return build('drive', 'v3', credentials=credentials)
-    except Exception:
+        else:
+            st.error("❌ 'google_drive' não encontrado nos st.secrets! Verifica as definições avançadas na Cloud.")
+            return None
+    except Exception as e:
+        st.error(f"❌ Erro de Autenticação Google API: {e}")
         return None
     return None
 
@@ -46,12 +50,16 @@ def fetch_files_from_source(path_dir, folder_key, exts=["*.csv"]):
     else:
         # --- MODO CLOUD ---
         service = get_drive_service()
+        if not service: return []  # Aborta imediatamente se não se conseguiu ligar
+        
         folder_id = FOLDER_IDS.get(folder_key)
-        if service and folder_id:
+        if folder_id:
             query = f"'{folder_id}' in parents and trashed = false"
             try:
                 results = service.files().list(q=query, pageSize=1000, fields="files(id, name)").execute()
                 items = results.get('files', [])
+                if not items:
+                    st.warning(f"⚠️ A pasta '{folder_key}' ({folder_id}) foi acedida, mas não tem ficheiros CSV!")
                 
                 valid_exts = [e.replace('*', '') for e in exts]
                 for item in items:
@@ -68,10 +76,10 @@ def fetch_files_from_source(path_dir, folder_key, exts=["*.csv"]):
                         df.columns = df.columns.str.strip().str.replace('"', '')
                         dfs.append(df)
                     except Exception as e:
-                        print(f"Erro ao ler {name}: {e}")
+                        st.error(f"Erro ao ler o ficheiro {name}: {e}")
                         continue
             except Exception as e:
-                print(f"Erro API: {e}")
+                st.error(f"❌ Erro ao aceder à pasta {folder_key} na Google Drive API: {e}")
                 
     return dfs
 
