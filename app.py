@@ -24,7 +24,7 @@ st.markdown("""
 st.sidebar.title("Filtros de Análise 📊")
 
 @st.cache_data(show_spinner="A ler milhões de linhas... Isto só demora na primeira vez! ⏳")
-def get_all_data():
+def get_cloud_data():
     base_path = os.path.join(os.path.dirname(__file__), "data")
     df_tel = load_telefonia(os.path.join(base_path, "telefonia"))
     df_logs = load_logs(os.path.join(base_path, "logs"))
@@ -33,7 +33,7 @@ def get_all_data():
     return df_tel, df_logs, df_doc, df_cad
 
 try:
-    df_tel, df_logs, df_doc, df_cad = get_all_data()
+    df_tel, df_logs, df_doc, df_cad = get_cloud_data()
     if df_tel.empty:
         st.warning("⚠️ Pastas de dados vazias! Coloque os ficheiros em `data/`.")
         st.stop()
