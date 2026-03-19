@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from core.processing import *
 from core.kpis import *
 from core.config import *
@@ -10,16 +11,12 @@ from datetime import datetime
 # Configuração da Página
 st.set_page_config(page_title="Dashboard Outbound MEO", layout="wide")
 
-if 'tema' not in st.session_state:
-    st.session_state.tema = 'Dark'
-
-is_dark = st.session_state.tema == 'Dark'
-bg_main = "#121212" if is_dark else "#F0F2F6"
-bg_metric = "#1e2130" if is_dark else "#FFFFFF"
-text_col = "#FFFFFF" if is_dark else "#111111"
-accent = "#00E5FF" if is_dark else "#0055FF"
-border_c = "#30363d" if is_dark else "#E0E0E0"
-plotly_template = "plotly_dark" if is_dark else "plotly_white"
+bg_main = "#121212"
+bg_metric = "#1e2130"
+text_col = "#FFFFFF"
+accent = "#00E5FF"
+border_c = "#30363d"
+plotly_template = "plotly_dark"
 
 # Estilos Customizados
 st.markdown(f"""
@@ -36,11 +33,6 @@ st.markdown(f"""
 
 # Sidebar - Filtros
 st.sidebar.title("Filtros de Análise 📊")
-
-if st.sidebar.button("🌓 Alternar Tema (Escuro/Claro)", help="Muda a aparência do Dashboard entre Dia e Noite."):
-    st.session_state.tema = 'Light' if st.session_state.tema == 'Dark' else 'Dark'
-    st.rerun()
-st.sidebar.divider()
 
 @st.cache_data(show_spinner="A ler milhões de linhas... Isto só demora na primeira vez! ⏳")
 def get_cloud_data():
@@ -195,11 +187,18 @@ if agente_selecionado != "Selecione...":
         fig = make_subplots(rows=1, cols=3, subplot_titles=("Atendidas", "Vendas", "Hit Ratio %"))
         
         c_ag = accent
-        c_eq = '#8b949e' if is_dark else '#B0B0B0'
+        c_eq = '#4b5563'
         
-        fig.add_trace(go.Bar(name="Agente", x=['Agente', 'Equipa'], y=[ag_data['Vol_Atendidas'], avg_eq['Vol_Atendidas']], marker_color=[c_ag, c_eq], text=[ag_data['Vol_Atendidas'], round(avg_eq['Vol_Atendidas'],1)], textposition='auto'), row=1, col=1)
-        fig.add_trace(go.Bar(name="Vendas", x=['Agente', 'Equipa'], y=[ag_data['Vendas'], avg_eq['Vendas']], marker_color=[c_ag, c_eq], text=[ag_data['Vendas'], round(avg_eq['Vendas'],1)], textposition='auto'), row=1, col=2)
-        fig.add_trace(go.Bar(name="HR %", x=['Agente', 'Equipa'], y=[ag_data['HR %'], avg_eq['HR %']], marker_color=[c_ag, c_eq], text=[f"{ag_data['HR %']:.2f}%", f"{avg_eq['HR %']:.2f}%"], textposition='auto'), row=1, col=3)
+        fig.add_trace(go.Bar(name="Agente", x=['Agente', 'Equipa'], y=[ag_data['Vol_Atendidas'], avg_eq['Vol_Atendidas']], marker_color=[c_ag, c_eq], text=[ag_data['Vol_Atendidas'], round(avg_eq['Vol_Atendidas'],1)]), row=1, col=1)
+        fig.add_trace(go.Bar(name="Vendas", x=['Agente', 'Equipa'], y=[ag_data['Vendas'], avg_eq['Vendas']], marker_color=[c_ag, c_eq], text=[ag_data['Vendas'], round(avg_eq['Vendas'],1)]), row=1, col=2)
+        fig.add_trace(go.Bar(name="HR %", x=['Agente', 'Equipa'], y=[ag_data['HR %'], avg_eq['HR %']], marker_color=[c_ag, c_eq], text=[f"{ag_data['HR %']:.2f}%", f"{avg_eq['HR %']:.2f}%"]), row=1, col=3)
+        
+        fig.update_traces(
+            texttemplate="<b>%{text}</b>", 
+            textposition='outside', 
+            textfont=dict(size=14, color="white"),
+            width=0.4
+        )
         
         fig.update_layout(showlegend=False, height=350, template=plotly_template, margin=dict(l=20,r=20,t=40,b=20))
         st.plotly_chart(fig, use_container_width=True)
