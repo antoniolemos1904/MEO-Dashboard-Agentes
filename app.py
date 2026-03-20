@@ -21,12 +21,25 @@ plotly_template = "plotly_dark"
 # Estilos Customizados
 st.markdown(f"""
 <style>
-    .main {{ background-color: {bg_main}; color: {text_col}; }}
+    /* Forçar fundo escuro em toda a app */
     .stApp {{ background-color: {bg_main}; color: {text_col}; }}
+    [data-testid="stSidebar"] {{ background-color: {bg_metric}; border-right: 1px solid {border_c}; }}
+    [data-testid="stHeader"] {{ background-color: rgba(0,0,0,0); }}
+    
+    /* Textos e Títulos */
     h1, h2, h3, h4, h5, h6 {{ color: {accent} !important; }}
+    .stText p, label, .stSelectbox label {{ color: {text_col} !important; }}
+    
+    /* Tabelas e Métricas */
     div[data-testid="stDataFrame"] td {{ text-align: center !important; }}
     div[data-testid="stDataFrame"] th {{ text-align: center !important; }}
-    div[data-testid="stMetric"] {{ background-color: {bg_metric}; padding: 15px; border-radius: 12px; border: 1px solid {border_c}; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+    div[data-testid="stMetric"] {{ 
+        background-color: {bg_metric}; 
+        padding: 15px; 
+        border-radius: 12px; 
+        border: 1px solid {border_c}; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+    }}
     div[data-testid="stMetricValue"] {{ color: {text_col} !important; font-weight: 700; }}
 </style>
 """, unsafe_allow_html=True)
@@ -189,18 +202,26 @@ if agente_selecionado != "Selecione...":
         c_ag = accent
         c_eq = '#4b5563'
         
-        fig.add_trace(go.Bar(name="Agente", x=['Agente', 'Equipa'], y=[ag_data['Vol_Atendidas'], avg_eq['Vol_Atendidas']], marker_color=[c_ag, c_eq], text=[ag_data['Vol_Atendidas'], round(avg_eq['Vol_Atendidas'],1)]), row=1, col=1)
-        fig.add_trace(go.Bar(name="Vendas", x=['Agente', 'Equipa'], y=[ag_data['Vendas'], avg_eq['Vendas']], marker_color=[c_ag, c_eq], text=[ag_data['Vendas'], round(avg_eq['Vendas'],1)]), row=1, col=2)
-        fig.add_trace(go.Bar(name="HR %", x=['Agente', 'Equipa'], y=[ag_data['HR %'], avg_eq['HR %']], marker_color=[c_ag, c_eq], text=[f"{ag_data['HR %']:.2f}%", f"{avg_eq['HR %']:.2f}%"]), row=1, col=3)
+        fig.add_trace(go.Bar(name="Agente", x=['Agente', 'Equipa'], y=[ag_data['Vol_Atendidas'], avg_eq['Vol_Atendidas']], marker_color=[accent, c_eq], text=[ag_data['Vol_Atendidas'], round(avg_eq['Vol_Atendidas'],1)]), row=1, col=1)
+        fig.add_trace(go.Bar(name="Vendas", x=['Agente', 'Equipa'], y=[ag_data['Vendas'], avg_eq['Vendas']], marker_color=[accent, c_eq], text=[ag_data['Vendas'], round(avg_eq['Vendas'],1)]), row=1, col=2)
+        fig.add_trace(go.Bar(name="HR %", x=['Agente', 'Equipa'], y=[ag_data['HR %'], avg_eq['HR %']], marker_color=[accent, c_eq], text=[f"{ag_data['HR %']:.2f}%", f"{avg_eq['HR %']:.2f}%"]), row=1, col=3)
         
         fig.update_traces(
             texttemplate="<b>%{text}</b>", 
             textposition='outside', 
-            textfont=dict(size=14, color="white"),
+            textfont=dict(size=14, color=text_col),
             width=0.4
         )
         
-        fig.update_layout(showlegend=False, height=350, template=plotly_template, margin=dict(l=20,r=20,t=40,b=20))
+        fig.update_layout(
+            showlegend=False, 
+            height=350, 
+            template=plotly_template, 
+            margin=dict(l=20,r=20,t=50,b=20),
+            font=dict(family="Inter, sans-serif", size=14)
+        )
+        for i in fig['layout']['annotations']:
+            i['font'] = dict(size=16, color=accent, weight='bold')
         st.plotly_chart(fig, use_container_width=True)
 
     # --- Inspecção de Vendas ---
