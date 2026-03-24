@@ -143,39 +143,58 @@ def load_doc(path_dir):
     return df.drop_duplicates(subset=[v_id_col])
 
 def get_sales_details(df_tel, df_doc):
+    """
+    Atribui vendas (DOC) à campanha representada por df_tel.
+    Passo 1: Filtrar DOC pelos contactos (Phone/NIC) que foram chamados nesta campanha.
+    Passo 2: Usar o NIF_VENDEDOR do DOC como atribuição ao agente.
+    """
     if df_tel.empty or df_doc.empty: return pd.DataFrame()
     
     v_id = COLUMNS_DOC['venda_id']
     
-    # Normalizar chaves cruzamento
-    def prep_k(val):
+    def prep_phone(val):
+        """Normaliza telefone: remove não-dígitos e mantém últimos 9 dígitos (formato PT)."""
         if pd.isna(val) or val == "": return None
         s = re.sub(r'\D', '', str(val))
-        return s if s != "" else None
-
-    df_t = df_tel.copy()
-    for c in [COLUMNS_TELEFONIA['phone'], COLUMNS_TELEFONIA['nic']]:
-        if c in df_t.columns: df_t[c] = df_t[c].astype(str).apply(prep_k)
-        
-    df_d = df_doc.copy()
-    for c in [COLUMNS_DOC['contacto'], COLUMNS_DOC['nic']]:
-        if c in df_d.columns: df_d[c] = df_d[c].astype(str).apply(prep_k)
-    if v_id in df_d.columns: df_d[v_id] = df_d[v_id].astype(str).str.strip()
-
-    # Match 1: Agente + Telefone
-    m1 = pd.merge(df_t[['Agente_NIF', COLUMNS_TELEFONIA['phone']]], 
-                  df_d, 
-                  left_on=['Agente_NIF', COLUMNS_TELEFONIA['phone']], 
-                  right_on=['Agente_NIF', COLUMNS_DOC['contacto']], how='inner')
+        if s == "" or s == "0": return None
+        return s[-9:] if len(s) >= 9 else s
     
-    # Match 2: Agente + NIC
-    m2 = pd.merge(df_t[['Agente_NIF', COLUMNS_TELEFONIA['nic']]], 
-                  df_d, 
-                  left_on=['Agente_NIF', COLUMNS_TELEFONIA['nic']], 
-                  right_on=['Agente_NIF', COLUMNS_DOC['nic']], how='inner')
+    def prep_nic(val):
+        """Normaliza NIC: remove não-dígitos."""
+        if pd.isna(val) or val == "": return None
+        s = re.sub(r'\D', '', str(val))
+        return s if s != "" and s != "0" else None
 
-    # Consolidar vendas únicas. Priorizar m1 (Telefone) sobre m2 (NIC) se necessário
-    matches = pd.concat([m1, m2]).drop_duplicates(subset=[v_id])
+    # --- Preparar Telefonia (já filtrada por campanha e período) ---
+    df_t = df_tel.copy()
+    if COLUMNS_TELEFONIA['phone'] in df_t.columns:
+        df_t['_phone_norm'] = df_t[COLUMNS_TELEFONIA['phone']].apply(prep_phone)
+    if COLUMNS_TELEFONIA['nic'] in df_t.columns:
+        df_t['_nic_norm'] = df_t[COLUMNS_TELEFONIA['nic']].apply(prep_nic)
+
+    # --- Preparar DOC ---
+    df_d = df_doc.copy()
+    if COLUMNS_DOC['contacto'] in df_d.columns:
+        df_d['_phone_norm'] = df_d[COLUMNS_DOC['contacto']].apply(prep_phone)
+    if COLUMNS_DOC['nic'] in df_d.columns:
+        df_d['_nic_norm'] = df_d[COLUMNS_DOC['nic']].apply(prep_nic)
+    if v_id in df_d.columns:
+        df_d[v_id] = df_d[v_id].astype(str).str.strip()
+
+    # === PASSO 1: Identificar contactos desta campanha ===
+    campaign_phones = set(df_t['_phone_norm'].dropna().unique()) - {None, ""}
+    campaign_nics = set(df_t['_nic_norm'].dropna().unique()) - {None, ""}
+    
+    # Filtrar DOC: manter apenas vendas cujo contacto OU NIC foi chamado nesta campanha
+    phone_hit = df_d['_phone_norm'].isin(campaign_phones) if campaign_phones else pd.Series(False, index=df_d.index)
+    nic_hit = df_d['_nic_norm'].isin(campaign_nics) if campaign_nics else pd.Series(False, index=df_d.index)
+    
+    matches = df_d[phone_hit | nic_hit].drop_duplicates(subset=[v_id]).copy()
+    
+    # === PASSO 2: Atribuição ao Agente ===
+    # O NIF_VENDEDOR do DOC já indica quem fez a venda (Agente_NIF já está no df_d)
+    # Não precisamos de alterar a atribuição. O agente é quem registou a venda.
+    
     return matches
 
 def get_sales_per_agent(df_tel, df_doc):
