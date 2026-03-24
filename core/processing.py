@@ -153,15 +153,23 @@ def get_sales_details(df_tel, df_doc):
     v_id = COLUMNS_DOC['venda_id']
     
     def prep_phone(val):
-        """Normaliza telefone: remove não-dígitos e mantém últimos 9 dígitos (formato PT)."""
+        """Normaliza telefone: converte float→int, remove não-dígitos, mantém últimos 9 dígitos."""
         if pd.isna(val) or val == "": return None
+        try:
+            val = int(float(val))
+        except (ValueError, OverflowError):
+            pass
         s = re.sub(r'\D', '', str(val))
         if s == "" or s == "0": return None
         return s[-9:] if len(s) >= 9 else s
     
     def prep_nic(val):
-        """Normaliza NIC: remove não-dígitos."""
+        """Normaliza NIC: converte float→int, remove não-dígitos."""
         if pd.isna(val) or val == "": return None
+        try:
+            val = int(float(val))
+        except (ValueError, OverflowError):
+            pass
         s = re.sub(r'\D', '', str(val))
         return s if s != "" and s != "0" else None
 
