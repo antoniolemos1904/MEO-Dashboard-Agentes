@@ -142,8 +142,8 @@ def load_doc(path_dir):
         
     return df.drop_duplicates(subset=[v_id_col])
 
-def get_sales_per_agent(df_tel, df_doc):
-    if df_tel.empty or df_doc.empty: return pd.Series(0, dtype=int)
+def get_sales_details(df_tel, df_doc):
+    if df_tel.empty or df_doc.empty: return pd.DataFrame()
     
     v_id = COLUMNS_DOC['venda_id']
     
@@ -162,46 +162,26 @@ def get_sales_per_agent(df_tel, df_doc):
         if c in df_d.columns: df_d[c] = df_d[c].astype(str).apply(prep_k)
     if v_id in df_d.columns: df_d[v_id] = df_d[v_id].astype(str).str.strip()
 
-    # 1. Match por NIF Direto
-    valid_nif_d = df_d[df_d['Agente_NIF'].notna() & (df_d['Agente_NIF'] != "")]
-    match_nif = valid_nif_d[valid_nif_d['Agente_NIF'].isin(df_t['Agente_NIF'].unique())].copy()
-    match_nif = match_nif.rename(columns={'Agente_NIF': 'Agente_NIF_match'})
+    # Match 1: Agente + Telefone
+    m1 = pd.merge(df_t[['Agente_NIF', COLUMNS_TELEFONIA['phone']]], 
+                  df_d, 
+                  left_on=['Agente_NIF', COLUMNS_TELEFONIA['phone']], 
+                  right_on=['Agente_NIF', COLUMNS_DOC['contacto']], how='inner')
     
-    # As vendas que já bateram pelo NIF do vendedor não devem ser reatribuídas a quem apenas ligou.
-    vendas_ja_atribuidas = match_nif[v_id].unique()
-    df_d_unmatched = df_d[~df_d[v_id].isin(vendas_ja_atribuidas)].copy()
+    # Match 2: Agente + NIC
+    m2 = pd.merge(df_t[['Agente_NIF', COLUMNS_TELEFONIA['nic']]], 
+                  df_d, 
+                  left_on=['Agente_NIF', COLUMNS_TELEFONIA['nic']], 
+                  right_on=['Agente_NIF', COLUMNS_DOC['nic']], how='inner')
 
-    # 2. Match por Telefone (Cruzamento apenas nas vendas não resolvidas)
-    valid_t_phone = df_t[df_t[COLUMNS_TELEFONIA['phone']].notna() & (df_t[COLUMNS_TELEFONIA['phone']] != "")]
-    valid_d_phone = df_d_unmatched[df_d_unmatched[COLUMNS_DOC['contacto']].notna() & (df_d_unmatched[COLUMNS_DOC['contacto']] != "")]
-    
-    m_phone = pd.merge(valid_t_phone[['Agente_NIF', COLUMNS_TELEFONIA['phone']]], 
-                       valid_d_phone[['Agente_NIF', COLUMNS_DOC['contacto'], v_id]], 
-                       left_on=COLUMNS_TELEFONIA['phone'], right_on=COLUMNS_DOC['contacto'], how='inner')
-    m_phone = m_phone.rename(columns={'Agente_NIF_x': 'Agente_NIF_match'})
-    
-    vendas_ja_atribuidas_phone = m_phone[v_id].unique()
-    df_d_unmatched2 = df_d_unmatched[~df_d_unmatched[v_id].isin(vendas_ja_atribuidas_phone)].copy()
-    
-    # 3. Match por NIC (Fallback final nas vendas sobrantes)
-    valid_t_nic = df_t[df_t[COLUMNS_TELEFONIA['nic']].notna() & (df_t[COLUMNS_TELEFONIA['nic']] != "")]
-    valid_d_nic = df_d_unmatched2[df_d_unmatched2[COLUMNS_DOC['nic']].notna() & (df_d_unmatched2[COLUMNS_DOC['nic']] != "")]
-    
-    m_nic = pd.merge(valid_t_nic[['Agente_NIF', COLUMNS_TELEFONIA['nic']]], 
-                     valid_d_nic[['Agente_NIF', COLUMNS_DOC['nic'], v_id]], 
-                     left_on=COLUMNS_TELEFONIA['nic'], right_on=COLUMNS_DOC['nic'], how='inner')
-    m_nic = m_nic.rename(columns={'Agente_NIF_x': 'Agente_NIF_match'})
+    # Consolidar vendas únicas. Priorizar m1 (Telefone) sobre m2 (NIC) se necessário
+    matches = pd.concat([m1, m2]).drop_duplicates(subset=[v_id])
+    return matches
 
-    # Consolidar tudo
-    matches = pd.concat([
-        match_nif[['Agente_NIF_match', v_id]],
-        m_phone[['Agente_NIF_match', v_id]],
-        m_nic[['Agente_NIF_match', v_id]]
-    ], ignore_index=True)
-    
+def get_sales_per_agent(df_tel, df_doc):
+    matches = get_sales_details(df_tel, df_doc)
     if matches.empty: return pd.Series(0, dtype=int)
-    
-    return matches.groupby('Agente_NIF_match')[v_id].nunique()
+    return matches.groupby('Agente_NIF')[COLUMNS_DOC['venda_id']].nunique()
 
 def get_cadastro(sheet_url):
     local_path = os.path.join(os.path.dirname(__file__), "..", "data", "cadastro", "cadastro.csv")

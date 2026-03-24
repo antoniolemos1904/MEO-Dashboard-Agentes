@@ -226,31 +226,17 @@ if agente_selecionado != "Selecione...":
 
     # --- Inspecção de Vendas ---
     with st.expander("💰 Lista de Vendas Identificadas"):
-        if not df_filtered_doc.empty:
-            # Match 1: NIF direto
-            v_id_col = COLUMNS_DOC['venda_id']
-            vendas_nif = df_filtered_doc[df_filtered_doc['Agente_NIF'] == nif_ag].copy()
+        vendas_agente = get_sales_details(df_filtered_tel, df_filtered_doc)
+        if not vendas_agente.empty:
+            vendas_agente = vendas_agente[vendas_agente['Agente_NIF'] == nif_ag]
             
-            # Match 2: Cruzamento Telefónico
-            def clean_phone(p):
-                if pd.isna(p): return ""
-                return re.sub(r'\D', '', str(p))
-            
-            tels_raw = df_filtered_tel[df_filtered_tel['Agente_NIF'] == nif_ag][COLUMNS_TELEFONIA['phone']].unique()
-            tels_validos = [clean_phone(t) for t in tels_raw if clean_phone(t) != ""]
-            
-            # Apply cleaning to the contact column in df_filtered_doc for matching
-            df_filtered_doc_cleaned = df_filtered_doc.copy()
-            df_filtered_doc_cleaned['clean_contacto'] = df_filtered_doc_cleaned[COLUMNS_DOC['contacto']].apply(clean_phone)
-            
-            vendas_tel = df_filtered_doc_cleaned[df_filtered_doc_cleaned['clean_contacto'].isin(tels_validos)].copy()
-            
-            vendas_final = pd.concat([vendas_nif, vendas_tel]).drop_duplicates(subset=[v_id_col])
-            
-            if not vendas_final.empty:
-                st.write(f"Total de {len(vendas_final)} vendas únicas atribuídas:")
-                st.dataframe(vendas_final[['Data_Hora_DT', COLUMNS_DOC['contacto'], COLUMNS_DOC['nic'], v_id_col]], use_container_width=True)
+            if not vendas_agente.empty:
+                st.write(f"Total de {len(vendas_agente)} vendas únicas atribuídas a esta campanha:")
+                st.dataframe(vendas_agente[['Data_Hora_DT', COLUMNS_DOC['contacto'], COLUMNS_DOC['nic'], COLUMNS_DOC['venda_id']]], use_container_width=True)
             else:
-                st.info("Nenhuma venda encontrada para este agente neste período.")
+                st.info("Nenhuma venda encontrada para este agente nesta campanha específica.")
         else:
-            st.info("Ficheiro DOC não carregado ou vazio.")
+            if df_filtered_doc.empty:
+                st.info("Ficheiro DOC não carregado ou vazio para este período.")
+            else:
+                st.info("Nenhuma venda cruzada com sucesso para esta campanha.")
