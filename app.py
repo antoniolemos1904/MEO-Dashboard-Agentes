@@ -113,6 +113,62 @@ else:
 sales_count = get_sales_per_agent(df_filtered_tel, df_filtered_doc)
 kpi_table['Vendas'] = kpi_table['Agente_NIF'].map(sales_count).fillna(0)
 
+# === DIAGNÓSTICO TEMPORÁRIO (REMOVER DEPOIS) ===
+with st.expander("🔍 DIAGNÓSTICO DE CRUZAMENTO (temporário)", expanded=True):
+    import re as _re
+    def _norm_phone(v):
+        if pd.isna(v) or v == "": return None
+        s = _re.sub(r'\D', '', str(v))
+        if s == "" or s == "0": return None
+        return s[-9:] if len(s) >= 9 else s
+    def _norm_nic(v):
+        if pd.isna(v) or v == "": return None
+        s = _re.sub(r'\D', '', str(v))
+        return s if s != "" and s != "0" else None
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**📞 TELEFONIA (campanha filtrada)**")
+        tel_phones_raw = df_filtered_tel[COLUMNS_TELEFONIA['phone']].dropna().head(10).tolist()
+        tel_nics_raw = df_filtered_tel[COLUMNS_TELEFONIA['nic']].dropna().head(10).tolist()
+        tel_phones_norm = [_norm_phone(p) for p in tel_phones_raw]
+        tel_nics_norm = [_norm_nic(n) for n in tel_nics_raw]
+        
+        st.write(f"Total linhas telefonia: {len(df_filtered_tel)}")
+        st.write(f"Phones RAW (10 amostra): {tel_phones_raw}")
+        st.write(f"Phones NORM (10 amostra): {tel_phones_norm}")
+        st.write(f"NICs RAW (10 amostra): {tel_nics_raw}")
+        st.write(f"NICs NORM (10 amostra): {tel_nics_norm}")
+    with c2:
+        st.markdown("**📄 DOC (período filtrado)**")
+        doc_phones_raw = df_filtered_doc[COLUMNS_DOC['contacto']].dropna().head(10).tolist() if COLUMNS_DOC['contacto'] in df_filtered_doc.columns else []
+        doc_nics_raw = df_filtered_doc[COLUMNS_DOC['nic']].dropna().head(10).tolist() if COLUMNS_DOC['nic'] in df_filtered_doc.columns else []
+        doc_phones_norm = [_norm_phone(p) for p in doc_phones_raw]
+        doc_nics_norm = [_norm_nic(n) for n in doc_nics_raw]
+        
+        st.write(f"Total linhas DOC: {len(df_filtered_doc)}")
+        st.write(f"Contactos RAW (10 amostra): {doc_phones_raw}")
+        st.write(f"Contactos NORM (10 amostra): {doc_phones_norm}")
+        st.write(f"NICs RAW (10 amostra): {doc_nics_raw}")
+        st.write(f"NICs NORM (10 amostra): {doc_nics_norm}")
+    
+    # Testar interseção
+    all_tel_phones = set([_norm_phone(p) for p in df_filtered_tel[COLUMNS_TELEFONIA['phone']].dropna().unique()]) - {None}
+    all_tel_nics = set([_norm_nic(n) for n in df_filtered_tel[COLUMNS_TELEFONIA['nic']].dropna().unique()]) - {None}
+    all_doc_phones = set([_norm_phone(p) for p in df_filtered_doc[COLUMNS_DOC['contacto']].dropna().unique()]) - {None} if COLUMNS_DOC['contacto'] in df_filtered_doc.columns else set()
+    all_doc_nics = set([_norm_nic(n) for n in df_filtered_doc[COLUMNS_DOC['nic']].dropna().unique()]) - {None} if COLUMNS_DOC['nic'] in df_filtered_doc.columns else set()
+    
+    phone_intersect = all_tel_phones & all_doc_phones
+    nic_intersect = all_tel_nics & all_doc_nics
+    
+    st.markdown(f"**Phones TEL: {len(all_tel_phones)} únicos | DOC: {len(all_doc_phones)} únicos | Interseção: {len(phone_intersect)}**")
+    st.markdown(f"**NICs TEL: {len(all_tel_nics)} únicos | DOC: {len(all_doc_nics)} únicos | Interseção: {len(nic_intersect)}**")
+    if phone_intersect:
+        st.write(f"Exemplo phones em comum: {list(phone_intersect)[:5]}")
+    if nic_intersect:
+        st.write(f"Exemplo NICs em comum: {list(nic_intersect)[:5]}")
+# === FIM DIAGNÓSTICO ===
+
 # Outros KPIs
 df_filtered_logs = df_logs[(df_logs['Data_Hora_DT'].dt.date >= df_filtered_tel['Data_Hora_DT'].dt.date.min()) & 
                            (df_logs['Data_Hora_DT'].dt.date <= df_filtered_tel['Data_Hora_DT'].dt.date.max())]
