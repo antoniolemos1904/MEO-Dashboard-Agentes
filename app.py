@@ -113,16 +113,34 @@ else:
 sales_count = get_sales_per_agent(df_filtered_tel, df_filtered_doc)
 kpi_table['Vendas'] = kpi_table['Agente_NIF'].map(sales_count).fillna(0)
 
-
+# --- Agentes com vendas mas sem chamadas nesta campanha ---
+agentes_com_vendas = set(sales_count.index) - set(kpi_table['Agente_NIF'].unique())
+if agentes_com_vendas:
+    novos = df_cad[df_cad['Agente_NIF'].isin(agentes_com_vendas)][['Agente_NIF', 'Team Leader', 'Listagem Assistentes']].drop_duplicates()
+    for _, row in novos.iterrows():
+        nova_linha = {
+            'Team Leader': row['Team Leader'],
+            'Listagem Assistentes': row['Listagem Assistentes'],
+            'Agente_NIF': row['Agente_NIF'],
+            'Talk_Time_Total': 0,
+            'Vol_Atendidas': 0,
+            'Vendas': sales_count.get(row['Agente_NIF'], 0)
+        }
+        kpi_table = pd.concat([kpi_table, pd.DataFrame([nova_linha])], ignore_index=True)
 
 # Outros KPIs
 df_filtered_logs = df_logs[(df_logs['Data_Hora_DT'].dt.date >= df_filtered_tel['Data_Hora_DT'].dt.date.min()) & 
                            (df_logs['Data_Hora_DT'].dt.date <= df_filtered_tel['Data_Hora_DT'].dt.date.max())]
 login_times_map = calculate_login_time(df_filtered_logs, campanha_selecionada)
-kpi_table['Login_Seconds'] = kpi_table['Agente_NIF'].map(login_times_map).fillna(0)
+lunch_times_map = calculate_lunch_time(df_filtered_logs)
 
-kpi_table['TMC_Sec'] = kpi_table['Talk_Time_Total'] / kpi_table['Vol_Atendidas']
-kpi_table['HR %'] = (kpi_table['Vendas'] / kpi_table['Vol_Atendidas'] * 100).fillna(0)
+kpi_table['Login_Bruto'] = kpi_table['Agente_NIF'].map(login_times_map).fillna(0)
+kpi_table['Almoco_Seconds'] = kpi_table['Agente_NIF'].map(lunch_times_map).fillna(0)
+kpi_table['Login_Seconds'] = (kpi_table['Login_Bruto'] - kpi_table['Almoco_Seconds']).clip(lower=0)
+
+kpi_table['TMC_Sec'] = kpi_table.apply(lambda r: r['Talk_Time_Total'] / r['Vol_Atendidas'] if r['Vol_Atendidas'] > 0 else 0, axis=1)
+kpi_table['HR %'] = kpi_table.apply(lambda r: (r['Vendas'] / r['Vol_Atendidas'] * 100) if r['Vol_Atendidas'] > 0 else 0, axis=1)
+kpi_table['VH'] = kpi_table.apply(lambda r: r['Vendas'] / (r['Login_Seconds'] / 3600) if r['Login_Seconds'] > 0 else 0, axis=1)
 
 # --- Exibição da Tabela Principal ---
 st.subheader("📊 Performance Agentes e Team Leaders")
@@ -131,6 +149,7 @@ display_table = kpi_table.copy()
 display_table['Total de Conversação'] = display_table['Talk_Time_Total'].apply(format_hms)
 display_table['TMC'] = display_table['TMC_Sec'].apply(format_hms)
 display_table['Tempo Login'] = display_table['Login_Seconds'].apply(format_hms)
+display_table['VH'] = display_table['VH'].round(2)
 
 # Renomear para o layout solicitado
 display_table = display_table.rename(columns={
@@ -138,7 +157,7 @@ display_table = display_table.rename(columns={
     'Vol_Atendidas': 'Chamadas Atendidas'
 })
 
-cols_to_show = ['Team Leader', 'Agentes', 'Chamadas Atendidas', 'Vendas', 'HR %', 'Total de Conversação', 'TMC', 'Tempo Login']
+cols_to_show = ['Team Leader', 'Agentes', 'Chamadas Atendidas', 'Vendas', 'HR %', 'VH', 'Total de Conversação', 'TMC', 'Tempo Login']
 
 st.dataframe(
     display_table[cols_to_show].sort_values('Vendas', ascending=False),
@@ -149,6 +168,7 @@ st.dataframe(
         "Chamadas Atendidas": st.column_config.NumberColumn("Chamadas Atendidas", format="%d"),
         "Vendas": st.column_config.NumberColumn("Vendas", format="%d"),
         "HR %": st.column_config.ProgressColumn("Hit Ratio", format="%.2f%%", min_value=0, max_value=20),
+        "VH": st.column_config.NumberColumn("V/H", format="%.2f"),
         "Total de Conversação": st.column_config.TextColumn("Total de Conversação"),
         "TMC": st.column_config.TextColumn("TMC"),
         "Tempo Login": st.column_config.TextColumn("Tempo Login"),
