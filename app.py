@@ -232,7 +232,9 @@ if agente_selecionado != "Selecione...":
             
             if not vendas_agente.empty:
                 st.write(f"Total de {len(vendas_agente)} vendas únicas atribuídas a esta campanha:")
-                st.dataframe(vendas_agente[['Data_Hora_DT', COLUMNS_DOC['contacto'], COLUMNS_DOC['nic'], COLUMNS_DOC['venda_id']]], use_container_width=True)
+                display_vendas = vendas_agente[['Data_Hora_DT', COLUMNS_DOC['contacto'], COLUMNS_DOC['nic'], COLUMNS_DOC['venda_id']]].copy()
+                display_vendas[COLUMNS_DOC['venda_id']] = display_vendas[COLUMNS_DOC['venda_id']].apply(lambda x: str(int(float(x))) if pd.notna(x) and str(x).replace('.','',1).isdigit() else x)
+                st.dataframe(display_vendas, use_container_width=True)
             else:
                 st.info("Nenhuma venda encontrada para este agente nesta campanha específica.")
         else:
